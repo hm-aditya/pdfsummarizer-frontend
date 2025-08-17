@@ -1,18 +1,27 @@
+"use client";
+
 import React, { useState, useRef, useEffect } from "react";
-import axios from "axios";
-import { File, MessageCircleQuestionMark } from "lucide-react";
+import axios, { AxiosError } from "axios";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { File as FileIcon, MessageCircleQuestionMark, Sparkles } from "lucide-react";
+
+interface ChatMessage {
+  user: string;
+  bot: string;
+}
 
 export default function UploadSummarizer() {
   const BACKEND_URL =
     process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
   const [file, setFile] = useState<File | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [chatHistory, setChatHistory] = useState<
-    { user: string; bot: string }[]
-  >([]);
-  const [chatLoading, setChatLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [chatInput, setChatInput] = useState<string>("");
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState<boolean>(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,19 +29,25 @@ export default function UploadSummarizer() {
   }, [chatHistory]);
 
   const handleUpload = async () => {
-    if (!file) return alert("Please select a PDF first!");
+    if (!file) {
+      alert("Please select a PDF first!");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       setLoading(true);
-      const res = await axios.post(`${BACKEND_URL}/summarize`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await axios.post<{ summary: string }>(
+        `${BACKEND_URL}/summarize`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
       setSummary(res.data.summary);
       setChatHistory([]);
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as AxiosError<{ error: string }>;
       console.error("Upload failed:", err.response?.data || err.message);
       alert(err.response?.data?.error || err.message);
     } finally {
@@ -49,7 +64,7 @@ export default function UploadSummarizer() {
     setChatLoading(true);
 
     try {
-      const res = await axios.post(`${BACKEND_URL}/chat`, {
+      const res = await axios.post<{ answer: string }>(`${BACKEND_URL}/chat`, {
         summary,
         question: userMessage,
       });
@@ -61,7 +76,8 @@ export default function UploadSummarizer() {
             : msg
         )
       );
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as AxiosError;
       console.error("Chat failed:", err.response?.data || err.message);
       setChatHistory((prev) =>
         prev.map((msg, i) =>
@@ -76,28 +92,25 @@ export default function UploadSummarizer() {
   };
 
   return (
-    <div className=" flex max-w-7xl mx-auto w-full  flex-col items-center justify-center text-white sm:px-6 lg:px-8 py-8 backdrop-blur-lg  border border-white/20 rounded-2xl shadow-2xl ">
-      <div className=" w-full ">
+    <div className="flex max-w-7xl mx-auto w-full flex-col items-center justify-center text-white sm:px-6 lg:px-8 py-8 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl">
+      <div className="w-full">
         <h1 className="text-4xl font-extrabold mb-8 text-center bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent drop-shadow-md">
           PDF Summarizer & Chat
         </h1>
-       
+
         {/* Upload Section */}
         <div className="w-full flex flex-col sm:flex-row justify-center gap-3 mb-8 items-center">
-          {/* File Upload */}
           <label
             htmlFor="file-upload"
             className="flex items-center justify-center gap-2 px-4 py-3 cursor-pointer rounded-lg border border-white/20 bg-white/10 text-white hover:bg-white/20 transition-all shadow-md"
           >
-            <File className="w-5 h-5 text-blue-400" />
+            <FileIcon className="w-5 h-5 text-blue-400" />
             {file ? (
-              <span className="mt-2 sm:mt-0 text-base text-gray-300 truncate max-w-xs">
+              <span className="text-base text-gray-300 truncate max-w-xs">
                 {file.name}
               </span>
             ) : (
-              <span className="mt-2 sm:mt-0 text-base text-gray-300 truncate max-w-xs">
-                Choose File
-              </span>
+              <span className="text-base text-gray-300">Choose File</span>
             )}
           </label>
           <input
@@ -108,50 +121,50 @@ export default function UploadSummarizer() {
             className="hidden"
           />
 
-          {/* Upload Button */}
           <button
             onClick={handleUpload}
             disabled={!file || loading}
             className="cursor-pointer px-5 text-white py-3 rounded-lg bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 disabled:opacity-70 transition-all shadow-lg"
           >
-            {loading ? "Uploading & Summarizing..." : "Upload & Summarize"}
+           <div className="flex items-center gap-2"><span> {loading ? "Uploading & Summarizing..." : "Upload & Summarize"}</span> <Sparkles className="w-5 h-5" /></div>
           </button>
         </div>
 
-        {/* Summary Section */}
+        {/* Summary */}
         {summary && (
           <div className="w-full mb-8">
-            <div className="flex items-center text-center gap-2 mb-4">
-              <File className="w-5 h-5 text-blue-400" />
-              <span className="text-xl font-semibold ">Summary:</span>
+            <div className="flex items-center gap-2 mb-4">
+              <FileIcon className="w-5 h-5 text-blue-400" />
+              <span className="text-xl font-semibold mt-1">Summary:</span>
             </div>
             <div className="bg-white/10 border border-white/20 p-4 rounded-lg shadow-inner text-gray-100 max-h-64 overflow-y-auto backdrop-blur-sm">
-              {summary}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {summary}
+              </ReactMarkdown>
             </div>
           </div>
         )}
 
-        {/* Chat Section */}
+        {/* Chat */}
         {summary && (
           <div className="w-full flex flex-col">
-            <div className="flex gap-3 items-center text-center">
-           <MessageCircleQuestionMark className="w-5 h-5 text-blue-400" />
-          <span className="text-xl font-semibold">
-            Chat about PDF:
-          </span>
-        </div>
+            <div className="flex gap-3 items-center mb-2">
+              <MessageCircleQuestionMark className="w-5 h-5 text-blue-400" />
+              <span className="text-xl font-semibold mt-1">Chat about PDF:</span>
+            </div>
             <div className="flex-1 bg-white/10 border border-white/20 p-4 rounded-lg overflow-y-auto flex flex-col gap-4 shadow-inner mb-4 backdrop-blur-sm max-h-96">
-              {chatHistory.length !== 0 &&
-                chatHistory.map((msg, idx) => (
-                  <div key={idx} className="flex flex-col">
-                    <div className="self-end bg-gradient-to-r from-blue-600 to-teal-500 text-white px-4 py-2 rounded-2xl max-w-xs break-words shadow-lg">
-                      {msg.user}
-                    </div>
-                    <div className="self-start bg-gray-800/70 border border-white/10 text-gray-200 px-4 py-2 rounded-2xl max-w-xs break-words shadow-md">
-                      {msg.bot}
-                    </div>
+              {chatHistory.map((msg, idx) => (
+                <div key={idx} className="flex flex-col">
+                  <div className="self-end bg-gradient-to-r from-blue-600 to-teal-500 text-white px-4 py-2 rounded-2xl max-w-2xl break-words shadow-lg">
+                    {msg.user}
                   </div>
-                ))}
+                   <div className="self-start bg-gray-800/70 border border-white/10 text-gray-200 px-4 py-2 rounded-2xl max-w-2xl break-words shadow-md prose prose-invert">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.bot}
+                      </ReactMarkdown>
+                    </div>
+                </div>
+              ))}
               <div ref={chatEndRef}></div>
             </div>
 
